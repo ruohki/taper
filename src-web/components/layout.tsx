@@ -1,16 +1,20 @@
 import styled from 'styled-components';
+import {fluidRange} from "polished";
 
 const EasyAlignToFlex = {
   "Center": "Center",
   "Left": "Flex-Start",
   "Right": "Flex-End",
   "Top": "Flex-Start",
-  "Bottom": "Flex-End"
+  "Bottom": "Flex-End",
+  "Stretch": "Stretch"
 }
 
 interface SplitProps {
   row?: boolean;
   grow?: boolean;
+  center?: boolean;
+  items?: "Top" | "Center" | "Stretch" | "Bottom";
 }
 
 export const Split = styled.div<SplitProps>`
@@ -19,11 +23,33 @@ export const Split = styled.div<SplitProps>`
   
   flex-direction: ${props => props.row ? 'column' : 'row'};
   flex-basis: ${props => props.grow ? 100 : 0}%;
+  justify-content: ${props => props.center ? 'space-around' : 'flex-start'};
+  align-items: ${props => EasyAlignToFlex[props.items]};
+`
+export const FluidVSplit = styled.div<SplitProps>`
+  height: 100%;
+  display: flex;
+  
+  ${fluidRange(
+    {
+      prop: 'flex-direction',
+      fromSize: 'column',
+      toSize: 'row',
+    },
+    '400px',
+    '1000px',
+  )}
+  
+  flex-direction: ${props => props.row ? 'column' : 'row'};
+  flex-basis: ${props => props.grow ? 100 : 0}%;
+  justify-content: ${props => props.center ? 'space-around' : 'flex-start'};
+  align-items: ${props => EasyAlignToFlex[props.items]};
 `
 
 Split.defaultProps = {
   row: false,
-  grow: false
+  grow: false,
+  center: false
 }
 
 interface PanelProps {

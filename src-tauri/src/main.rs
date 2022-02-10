@@ -1,6 +1,6 @@
 #![cfg_attr(
-  all(not(debug_assertions), target_os = "windows"),
-  windows_subsystem = "windows"
+all(not(debug_assertions), target_os = "windows"),
+windows_subsystem = "windows"
 )]
 
 use once_cell::sync::Lazy;
@@ -20,54 +20,56 @@ struct SqliteState(Arc<Mutex<Connection>>);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TapeData {
-    id: String,             // Guid des Tapes
-    barcode: Option<String>,        // Barcode des Tapes
-    name: Option<String>,           // Barcode des Tapes
-    capacity: Option<i64>,
-    remaining: Option<i64>,
-    is_full: Option<bool>,
-    is_free: Option<bool>
-    /*
-    expirationDate: Date,
-    mediaPool: MediaPool
-    mediaSet: MediaSet
-    mediaType: Type
-    */
+  id: String,
+  // Guid des Tapes
+  barcode: Option<String>,
+  // Barcode des Tapes
+  name: Option<String>,
+  // Barcode des Tapes
+  capacity: Option<i64>,
+  remaining: Option<i64>,
+  is_full: Option<bool>,
+  is_free: Option<bool>,
+  /*
+  expirationDate: Date,
+  mediaPool: MediaPool
+  mediaSet: MediaSet
+  mediaType: Type
+  */
 }
 
 
 #[tauri::command]
 fn query_tape(
-    conn: tauri::State<SqliteState>,
-    tape_name: String
+  conn: tauri::State<SqliteState>,
+  tape_name: String,
 ) -> Result<TapeData, String> {
-    let con = conn.0.lock().unwrap();
+  let con = conn.0.lock().unwrap();
 
-    let mut stmt = match con.prepare(format!("SELECT * FROM tape_data WHERE name = '{}'  LIMIT 1", tape_name).as_str()) {
-        Ok(stmt) => stmt,
-        Err(error) => return Err(error.to_string())
-    };
+  let mut stmt = match con.prepare(format!("SELECT * FROM tape_data WHERE name = '{}'  LIMIT 1", tape_name).as_str()) {
+    Ok(stmt) => stmt,
+    Err(error) => return Err(error.to_string())
+  };
 
-    let mut person_iter = match stmt.query_map([], |row| {
+  let mut person_iter = match stmt.query_map([], |row| {
+    Ok(TapeData {
+      id: row.get(0).unwrap(),
+      barcode: row.get(1).ok(),
+      name: row.get(2).ok(),
+      capacity: row.get(3).ok(),
+      remaining: row.get(4).ok(),
+      is_full: row.get(5).ok(),
+      is_free: row.get(6).ok(),
+    })
+  }) {
+    Ok(iter) => iter,
+    Err(error) => return Err(error.to_string())
+  };
 
-        Ok(TapeData {
-            id: row.get(0).unwrap(),
-            barcode: row.get(1).ok(),
-            name: row.get(2).ok(),
-            capacity: row.get(3).ok(),
-            remaining: row.get(4).ok(),
-            is_full: row.get(5).ok(),
-            is_free: row.get(6).ok()
-        })
-    }) {
-        Ok(iter) => iter,
-        Err(error) => return Err(error.to_string())
-    };
-
-    match person_iter.next() {
-        Some(item) => Ok(item.unwrap()),
-        _ => Err("Tape wurde nicht gefunden".to_owned())
-    }
+  match person_iter.next() {
+    Some(item) => Ok(item.unwrap()),
+    _ => Err("Tape wurde nicht gefunden".to_owned())
+  }
 }
 
 #[tokio::main]
@@ -80,18 +82,18 @@ async fn main() -> anyhow::Result<()> {
   let mut client = Client::connect(config, tcp.compat_write()).await?;
   let conn = Connection::open_in_memory()?;
   conn.execute(
-      r"CREATE TABLE tape_data (
-                id              TEXT NOT NULL,
-                barcode         TEXT,
-                name            TEXT,
-                capacity        BIGINT,
-                remaining       BIGINT,
-                is_full         BOOLEAN,
-                is_free         BOOLEAN
-           )",
-      [],
+    r"CREATE TABLE tape_data (
+        id              TEXT NOT NULL,
+        barcode         TEXT,
+        name            TEXT,
+        capacity        BIGINT,
+        remaining       BIGINT,
+        is_full         BOOLEAN,
+        is_free         BOOLEAN
+    )",
+    [],
   );
-  
+
   let query = r"
     SELECT
     [Tape.tape_mediums].*,
@@ -108,25 +110,24 @@ async fn main() -> anyhow::Result<()> {
     [Tape.media_pools] ON [Tape.media_families].media_pool_id = [Tape.media_pools].id
     ";
 
-    let mut stream = client.query(query, &[&1i32]).await?;
-    while let Some(item) = stream.try_next().await? {
-        if let Some(row) = item.as_row() {
-            let id: Option<tiberius::Uuid> = row.get("id");
-            let name: Option<&str> = row.get("name");
-            let barcode: Option<&str> = row.get("barcode");
-            let capacity: Option<i64> = row.get("capacity");
-            let remaining: Option<i64> = row.get("remaining");
-            let is_full: Option<bool> = row.get("is_full");
-            let is_free = capacity.unwrap() == remaining.unwrap();
+  let mut stream = client.query(query, &[&1i32]).await?;
+  while let Some(item) = stream.try_next().await? {
+    if let Some(row) = item.as_row() {
+      let id: Option<tiberius::Uuid> = row.get("id");
+      let name: Option<&str> = row.get("name");
+      let barcode: Option<&str> = row.get("barcode");
+      let capacity: Option<i64> = row.get("capacity");
+      let remaining: Option<i64> = row.get("remaining");
+      let is_full: Option<bool> = row.get("is_full");
+      let is_free = capacity.unwrap() == remaining.unwrap();
 
-            conn.execute(
-                "INSERT INTO tape_data (id, barcode, name, capacity, remaining, is_full, is_free) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![id.unwrap().to_string(), name.unwrap(), barcode.unwrap(), capacity.unwrap(), remaining.unwrap(), is_full.unwrap(), is_free],
-            )?;
-            //println!("{:?}", val);
-        }
-
+      conn.execute(
+        "INSERT INTO tape_data (id, barcode, name, capacity, remaining, is_full, is_free) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![id.unwrap().to_string(), name.unwrap(), barcode.unwrap(), capacity.unwrap(), remaining.unwrap(), is_full.unwrap(), is_free],
+      )?;
+      //println!("{:?}", val);
     }
+  }
 
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![query_tape])
